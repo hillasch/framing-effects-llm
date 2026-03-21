@@ -1,0 +1,8 @@
+requests
+pypdf
+chromadb
+langchain
+langchain-community
+langchain-openai
+crewai
+python-dotenv
