@@ -2,6 +2,7 @@
 #
 # Downloads 15 curated human psychology papers (cognitive biases, memory & recall,
 # emotion & cognition) from verified free PDF URLs and saves them to data/corpus.json.
+# If a URL fails, falls back to local PDFs in data/pdfs/
 #
 # Usage:
 #   python src/fetch_corpus.py
@@ -16,9 +17,24 @@ from io import BytesIO
 # ── Output path ───────────────────────────────────────────────────────────────
 OUTPUT_PATH = Path("data/corpus.json")
 
+# ── Local PDF fallback mapping ────────────────────────────────────────────────
+# Maps paper ID → actual filename in data/pdfs/
+LOCAL_PDFS = {
+    "loftus_klemfuss_2023":    "Misinformation – past, present, and future.pdf",
+    "roediger_mcdermott_1995": "RoedigerMcDermott 1996 DRM False.pdf",
+    "schacter_1999":           "Schacter-The20720Sins20of20Memory-AP-1999.pdf",
+    "gross_1998":              "Antecedent- and Response-Focused Emotion Regulation.pdf",
+    "gross_2002":              "Psychophysiology - 2003 - Gross - Emotion regulation  Affective  cognitive  and social consequences.pdf",
+    "gross_john_2003":         "Gross-James-Individual-Differences-in-Two-Emotion-Regulation-Processes....pdf",
+    "aldao_2010":              "Aldao Nolen-Hoeksema 2010 emotion regulation strategies psychopathology.pdf",
+    "baumeister_2007":         "baumeister-et-al-2007-how-emotion-shapes-behavior-feedback-anticipation-and-reflection-rather-than-direct-causation.pdf",
+    "lerner_2015":             "emotion-and-decision-making.pdf",
+    "nolen_hoeksema_2008":     "nolen-hoeksema-et-al-2008-rethinking-rumination.pdf",
+}
+LOCAL_PDF_DIR = Path("data/pdfs")
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ── Curated corpus ────────────────────────────────────────────────────────────
-# 15 foundational human psychology papers, all freely accessible PDFs.
-# Organised into 3 topics: cognitive_bias | memory | emotion_cognition
 PAPERS = [
 
     # ── COGNITIVE BIASES ──────────────────────────────────────────────────────
@@ -66,7 +82,7 @@ PAPERS = [
     },
     {
         "id": "loftus_klemfuss_2023",
-        "title": "Misinformation – Past, Present, and Future",
+        "title": "Misinformation - Past, Present, and Future",
         "authors": ["Elizabeth F. Loftus", "J. Zoe Klemfuss"],
         "year": 2023,
         "topic": "memory",
@@ -130,8 +146,6 @@ PAPERS = [
         "topic": "emotion_cognition",
         "pdf_url": "https://carlsonschool.umn.edu/sites/carlsonschool.umn.edu/files/2019-06/how_emotion_shapes_behavior.pdf",
     },
-
-    # ── BRIDGES ALL THREE TOPICS ──────────────────────────────────────────────
     {
         "id": "lerner_2015",
         "title": "Emotion and Decision Making",
@@ -152,18 +166,29 @@ PAPERS = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def fetch_pdf_text(pdf_url: str, paper_id: str) -> str | None:
-    """Download a PDF and extract its text. Returns None on failure."""
+def extract_text_from_path(pdf_path):
+    """Extract text from a local PDF file."""
+    reader = PdfReader(str(pdf_path))
+    pages_text = []
+    for page in reader.pages:
+        t = page.extract_text()
+        if t:
+            pages_text.append(t)
+    full_text = "\n".join(pages_text).strip()
+    return full_text if full_text else None
+
+
+def fetch_pdf_text(pdf_url, paper_id):
+    """Try URL first, then fall back to local PDF in data/pdfs/."""
     headers = {"User-Agent": "Mozilla/5.0 (research corpus builder)"}
+
+    # 1 — Try downloading from URL
     try:
         response = requests.get(pdf_url, timeout=30, headers=headers)
         response.raise_for_status()
-
-        # Some URLs redirect to HTML — skip those
         content_type = response.headers.get("Content-Type", "")
         if "html" in content_type and "pdf" not in content_type:
-            print(f"      ⚠️  URL returned HTML, not PDF — skipping")
-            return None
+            raise ValueError("URL returned HTML instead of PDF")
 
         reader = PdfReader(BytesIO(response.content))
         pages_text = []
@@ -171,16 +196,35 @@ def fetch_pdf_text(pdf_url: str, paper_id: str) -> str | None:
             t = page.extract_text()
             if t:
                 pages_text.append(t)
-
         full_text = "\n".join(pages_text).strip()
-        return full_text if full_text else None
+        if full_text:
+            return full_text
+        raise ValueError("PDF had no extractable text")
 
     except Exception as e:
-        print(f"      ⚠️  Failed ({e.__class__.__name__}: {e})")
-        return None
+        print(f"      URL failed ({e.__class__.__name__}) — trying local file...")
+
+    # 2 — Fall back to local PDF
+    local_filename = LOCAL_PDFS.get(paper_id)
+    if local_filename:
+        local_path = LOCAL_PDF_DIR / local_filename
+        if local_path.exists():
+            try:
+                text = extract_text_from_path(local_path)
+                if text:
+                    print(f"       Loaded from local file: {local_filename[:60]}")
+                    return text
+            except Exception as e2:
+                print(f"      Local file also failed: {e2}")
+        else:
+            print(f"       Local file not found: {local_filename}")
+    else:
+        print(f"       No local file mapped for: {paper_id}")
+
+    return None
 
 
-def build_corpus() -> list[dict]:
+def build_corpus():
     corpus = []
 
     for paper in PAPERS:
@@ -191,9 +235,9 @@ def build_corpus() -> list[dict]:
 
         if full_text:
             word_count = len(full_text.split())
-            print(f"   ✅ Extracted {word_count:,} words")
+            print(f"    Extracted {word_count:,} words")
         else:
-            print(f"   ❌ Could not extract text — stored metadata only")
+            print(f"    Could not extract text from URL or local file")
 
         corpus.append({
             "id": paper["id"],
@@ -203,11 +247,10 @@ def build_corpus() -> list[dict]:
             "topic": paper["topic"],
             "pdf_url": paper["pdf_url"],
             "full_text": full_text,
-            # 'text' is what gets embedded in ChromaDB
             "text": full_text if full_text else f"{paper['title']}. By {', '.join(paper['authors'])} ({paper['year']}).",
         })
 
-        time.sleep(1)  # be polite
+        time.sleep(1)
 
     return corpus
 
@@ -215,7 +258,7 @@ def build_corpus() -> list[dict]:
 def main():
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    print("🚀 Building corpus from curated human psychology papers...\n")
+    print(" Building corpus from curated human psychology papers...\n")
     corpus = build_corpus()
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
@@ -223,19 +266,17 @@ def main():
 
     success = sum(1 for p in corpus if p["full_text"])
     print(f"\n{'='*60}")
-    print(f"✅ Done! {len(corpus)} papers saved to {OUTPUT_PATH}")
+    print(f" Done! {len(corpus)} papers saved to {OUTPUT_PATH}")
     print(f"   Full text extracted: {success}/{len(corpus)}")
     print(f"   Topics: cognitive_bias={sum(1 for p in corpus if p['topic']=='cognitive_bias')} | "
           f"memory={sum(1 for p in corpus if p['topic']=='memory')} | "
           f"emotion_cognition={sum(1 for p in corpus if p['topic']=='emotion_cognition')}")
 
-    # Report any failures
     failed = [p["title"][:50] for p in corpus if not p["full_text"]]
     if failed:
-        print(f"\n⚠️  Failed extractions ({len(failed)}):")
+        print(f"\n  Failed extractions ({len(failed)}):")
         for t in failed:
             print(f"   - {t}...")
-        print("   → For failed ones, try manually downloading the PDF and placing it in data/pdfs/")
 
 
 if __name__ == "__main__":
