@@ -1,3 +1,5 @@
+# src/fetch_corpus.py
+#
 # Downloads 15 curated human psychology papers (cognitive biases, memory & recall,
 # emotion & cognition) from verified free PDF URLs and saves them to data/corpus.json.
 #
@@ -50,7 +52,7 @@ PAPERS = [
         "authors": ["Daniel Kahneman"],
         "year": 2003,
         "topic": "cognitive_bias",
-        "pdf_url": "https://www.princeton.edu/~kahneman/docs/Publications/Maps_bounded_rationality_DK_2003.pdf",
+        "pdf_url": "https://houdekpetr.cz/!data/public_html/papers/Kahnem%202003.pdf",
     },
 
     # ── MEMORY & RECALL ───────────────────────────────────────────────────────
@@ -60,7 +62,7 @@ PAPERS = [
         "authors": ["Elizabeth F. Loftus"],
         "year": 2005,
         "topic": "memory",
-        "pdf_url": "https://labs.wsu.edu/attention-perception-performance/documents/2016/05/learn-mem-2005-loftus-361-6.pdf/",
+        "pdf_url": "https://learnmem.cshlp.org/content/12/4/361.full.pdf",
     },
     {
         "id": "loftus_klemfuss_2023",
@@ -76,7 +78,7 @@ PAPERS = [
         "authors": ["Henry L. Roediger", "Kathleen B. McDermott"],
         "year": 1995,
         "topic": "memory",
-        "pdf_url": "https://pdfs.semanticscholar.org/2e50/b99e4cd6fce2ba1b5a8ef22fa96cc4c6e94c.pdf",
+        "pdf_url": "https://websites.umich.edu/~bcaplan/roediger.pdf",
     },
     {
         "id": "schacter_1999",
@@ -94,7 +96,7 @@ PAPERS = [
         "authors": ["James J. Gross"],
         "year": 1998,
         "topic": "emotion_cognition",
-        "pdf_url": "https://spl.stanford.edu/sites/default/files/gross_1998_jpsp.pdf",
+        "pdf_url": "https://psych.colorado.edu/~tito/sp03/7536/Gross_1998.pdf",
     },
     {
         "id": "gross_2002",
@@ -102,7 +104,7 @@ PAPERS = [
         "authors": ["James J. Gross"],
         "year": 2002,
         "topic": "emotion_cognition",
-        "pdf_url": "https://spl.stanford.edu/sites/default/files/gross_2002_psychophysiology.pdf",
+        "pdf_url": "https://www.ocf.berkeley.edu/~tijkstra/downloads/Gross%202002.pdf",
     },
     {
         "id": "gross_john_2003",
@@ -110,7 +112,7 @@ PAPERS = [
         "authors": ["James J. Gross", "Oliver P. John"],
         "year": 2003,
         "topic": "emotion_cognition",
-        "pdf_url": "https://spl.stanford.edu/sites/default/files/gross_john_2003_jpsp.pdf",
+        "pdf_url": "https://psychology.berkeley.edu/sites/default/files/publications/john_gross_2003.pdf",
     },
     {
         "id": "aldao_2010",
@@ -118,7 +120,7 @@ PAPERS = [
         "authors": ["Amelia Aldao", "Susan Nolen-Hoeksema", "Susanne Schweizer"],
         "year": 2010,
         "topic": "emotion_cognition",
-        "pdf_url": "https://www.researchgate.net/publication/40898179_Emotion-Regulation_Strategies_Across_Psychopathology_A_Meta-Analytic_Review",
+        "pdf_url": "https://wikilab.haifa.ac.il/images/d/d5/Aldao_Nolen-Hoeksema_Schweizer_2010.pdf",
     },
     {
         "id": "baumeister_2007",
@@ -126,7 +128,7 @@ PAPERS = [
         "authors": ["Roy F. Baumeister", "E. J. Masicampo", "Kathleen D. Vohs"],
         "year": 2007,
         "topic": "emotion_cognition",
-        "pdf_url": "https://www.researchgate.net/publication/5907191_How_emotion_shapes_behavior_Feedback_anticipation_and_reflection_rather_than_direct_causation",
+        "pdf_url": "https://carlsonschool.umn.edu/sites/carlsonschool.umn.edu/files/2019-06/how_emotion_shapes_behavior.pdf",
     },
 
     # ── BRIDGES ALL THREE TOPICS ──────────────────────────────────────────────
@@ -136,7 +138,7 @@ PAPERS = [
         "authors": ["Jennifer S. Lerner", "Ye Li", "Piercarlo Valdesolo", "Karim S. Kassam"],
         "year": 2015,
         "topic": "emotion_cognition",
-        "pdf_url": "https://scholar.harvard.edu/files/jenniferlerner/files/annual_review_manuscript_june_16_final.final_.pdf",
+        "pdf_url": "https://scholar.harvard.edu/files/jenniferlerner/files/emotion_and_decision_making.pdf",
     },
     {
         "id": "nolen_hoeksema_2008",
@@ -144,7 +146,7 @@ PAPERS = [
         "authors": ["Susan Nolen-Hoeksema", "Blair E. Wisco", "Sonja Lyubomirsky"],
         "year": 2008,
         "topic": "emotion_cognition",
-        "pdf_url": "https://www.researchgate.net/publication/23553177_Rethinking_Rumination",
+        "pdf_url": "https://www.ocf.berkeley.edu/~tijkstra/downloads/Nolen-Hoeksema%20et%20al.%202008.pdf",
     },
 ]
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +162,7 @@ def fetch_pdf_text(pdf_url: str, paper_id: str) -> str | None:
         # Some URLs redirect to HTML — skip those
         content_type = response.headers.get("Content-Type", "")
         if "html" in content_type and "pdf" not in content_type:
-            print(f"       URL returned HTML, not PDF — skipping")
+            print(f"      ⚠️  URL returned HTML, not PDF — skipping")
             return None
 
         reader = PdfReader(BytesIO(response.content))
@@ -174,7 +176,7 @@ def fetch_pdf_text(pdf_url: str, paper_id: str) -> str | None:
         return full_text if full_text else None
 
     except Exception as e:
-        print(f"       Failed ({e.__class__.__name__}: {e})")
+        print(f"      ⚠️  Failed ({e.__class__.__name__}: {e})")
         return None
 
 
@@ -213,7 +215,7 @@ def build_corpus() -> list[dict]:
 def main():
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    print("Building corpus from curated human psychology papers...\n")
+    print("🚀 Building corpus from curated human psychology papers...\n")
     corpus = build_corpus()
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
@@ -230,7 +232,7 @@ def main():
     # Report any failures
     failed = [p["title"][:50] for p in corpus if not p["full_text"]]
     if failed:
-        print(f"\n Failed extractions ({len(failed)}):")
+        print(f"\n⚠️  Failed extractions ({len(failed)}):")
         for t in failed:
             print(f"   - {t}...")
         print("   → For failed ones, try manually downloading the PDF and placing it in data/pdfs/")
